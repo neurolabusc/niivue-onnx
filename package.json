@@ -1,5 +1,5 @@
 {
-  "name": "niivue-brainchop",
+  "name": "niivue-onnx",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@niivue/niivue": "^0.43.3",
+    "@niivue/niivue": "^0.44.1",
     "onnxruntime-web": "^1.19.0-dev.20240713-281ed8c12d"
   },
   "devDependencies": {
