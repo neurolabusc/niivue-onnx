@@ -1,6 +1,8 @@
 import { Niivue } from '@niivue/niivue'
 // IMPORTANT: we need to import this specific file. 
 import * as ort from "./node_modules/onnxruntime-web/dist/ort.all.mjs"
+import meshnet from "./net.js"
+
 async function main() {
   clipCheck.onchange = function () {
     if (clipCheck.checked) {
@@ -45,6 +47,20 @@ async function main() {
       await nv1.removeVolume(nv1.volumes[1])
     }
   }
+  const getDevice = async () => {
+    if (!navigator.gpu) return false;
+
+    const requiredLimits = {};
+    const maxBufferSize = 335544320;
+    requiredLimits.maxStorageBufferBindingSize = maxBufferSize;
+    requiredLimits.maxBufferSize = maxBufferSize;
+
+    const adapter = await navigator.gpu.requestAdapter();
+    return await adapter.requestDevice({
+        requiredLimits: requiredLimits,
+        requiredFeatures: ["shader-f16"]
+    });
+  };
   segmentBtn.onclick = async function () {
     if (nv1.volumes.length < 1) {
       window.alert('Please open a voxel-based image')
@@ -76,7 +92,14 @@ async function main() {
       graphOptimizationLevel: 'disabled',
       optimizedModelFilepath: 'opt.onnx'
     } // n.b. in future graphOptimizationLevel extended
-    const session = await ort.InferenceSession.create('./model.onnx', option)
+
+    // TODO: Make ONNX and tinygrad inference switchable
+    //const session = await ort.InferenceSession.create('./model.onnx', option)
+
+    // Setup tinygrad meshnet model: get a WebGPU device, load weights
+    const device = await getDevice();
+    const session = await meshnet.load(device, "./net.safetensors");
+
     const shape = [1, 1, 256, 256, 256]
     const nvox = shape.reduce((a, b) => a * b)
     if (img32.length !== nvox) {
@@ -84,9 +107,18 @@ async function main() {
     }
     const imgTensor = new ort.Tensor('float32', img32, shape)
     const feeds = { "input": imgTensor }
+
+    // TODO: Make ONNX and tinygrad inference switchable
     // run onnx inference
-    const results = await session.run(feeds)
-    const classImg = results.output.cpuData
+    // const results = await session.run(feeds)
+
+    // run tinygrad inference
+    const results = await session(img32);
+
+    // Can be multi-tensor output, but this model only produces a single output
+    const classImg = results[0];
+
+    // const classImg = results.output.cpuData
     // classImg will have one volume per class
     const nvol = Math.floor(classImg.length / nvox)
     if ((nvol < 2) || (classImg.length != (nvol * nvox))) {
